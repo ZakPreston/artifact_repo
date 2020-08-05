@@ -1,0 +1,7 @@
+---
+- name: Install CI and QA environments
+  hosts: all
+  roles:
+  - role: deploy-env
+    become: yes
+

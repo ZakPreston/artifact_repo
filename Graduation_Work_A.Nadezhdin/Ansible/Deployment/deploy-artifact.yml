@@ -1,0 +1,7 @@
+---
+- name: Deploy and run Artifact
+  hosts: all
+  roles:
+  - role: deploy-artifact
+    become: yes
+    become_user: devops

@@ -1,0 +1,105 @@
+properties([pipelineTriggers([githubPush()])])
+
+pipeline {
+    agent any
+
+    tools {
+        maven "maven"
+    }
+
+    environment {
+        NEXUS_VERSION = "nexus3"
+        NEXUS_PROTOCOL = "http"
+        NEXUS_URL = "192.168.110.100:8081"
+        NEXUS_REPOSITORY = "Spring2020"
+        NEXUS_CREDENTIAL_ID = "Nexus"
+        DOCKER_REPO_URL = "192.168.110.100:8088"
+        GIT_URL = "https://github.com/ZakPreston/spring-boot.git"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm: [
+                        $class: 'GitSCM',
+                        branches: [[name: '*/2.1.x']],
+                        userRemoteConfigs: [[url:GIT_URL]]
+                ]
+            }
+        }        
+        
+        stage('Build') {
+            steps {
+                // Run Maven on a Unix agent.
+                sh "mvn -version"
+                sh "mvn clean install -f ./spring-boot-samples/spring-boot-sample-web-ui/pom.xml"
+            }
+        }
+
+        stage("Publish") {
+            steps {
+                script {
+                    pom = readMavenPom file: "spring-boot-samples/spring-boot-sample-web-ui/pom.xml";
+                    filesByGlob = findFiles(glob: "spring-boot-samples/spring-boot-sample-web-ui/target/*.${pom.packaging}");
+                    
+                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].lastModified}"
+                    
+                    nexusArtifactUploader(
+                        nexusVersion: NEXUS_VERSION,
+                        protocol: NEXUS_PROTOCOL,
+                        nexusUrl: NEXUS_URL,
+                        groupId: pom.parent.groupId,
+                        version: BUILD_NUMBER,
+                        repository: NEXUS_REPOSITORY,
+                        credentialsId: NEXUS_CREDENTIAL_ID,
+                        artifacts: [
+                            [artifactId: pom.artifactId,
+                            classifier: '',
+                            file: filesByGlob[0].path,
+                            type: pom.packaging],
+                            [artifactId: pom.artifactId,
+                            classifier: '',
+                            file: "spring-boot-samples/spring-boot-sample-web-ui/pom.xml",
+                            type: "pom"]
+                        ]
+                    );
+                    withCredentials([usernamePassword(credentialsId: NEXUS_CREDENTIAL_ID, passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USER')]) {
+                        withEnv([
+                            "ARTIFACT_VERSION=${BUILD_NUMBER}",
+                            "ARTIFACT_ID=${pom.artifactId}",
+                            "DOCKERFILE_PATH=${WORKSPACE}/spring-boot-samples/spring-boot-sample-web-ui/",
+                            "NEXUS_PASSWORD=${NEXUS_PASSWORD}",
+                            "NEXUS_USER=${NEXUS_USER}"
+                        ]) {
+                            ansiblePlaybook(inventory: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/hosts', playbook: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/create-docker-artifact.yml', limit: 'local')
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {        
+            steps {
+                build job: 'Deploy', parameters: [
+                    string(name: 'ENV_NAME', value: 'epam-ci'),
+                    string(name: 'ARTIFACT_VERSION', value: BUILD_NUMBER),
+                    string(name: 'ARTIFACT_TYPE', value: 'jar'), 
+                    string(name: 'APPLICATION_PORT', value: '8082')
+                ], wait: false
+                
+                build job: 'Deploy', parameters: [
+                    string(name: 'ENV_NAME', value: 'epam-docker'),
+                    string(name: 'ARTIFACT_VERSION', value: BUILD_NUMBER),
+                    string(name: 'ARTIFACT_TYPE', value: 'container'),
+                    string(name: 'APPLICATION_PORT', value: '8086')
+                ], wait: false
+            }
+        }
+    }
+    
+    post { 
+        always { 
+            cleanWs()
+        }
+    }
+}

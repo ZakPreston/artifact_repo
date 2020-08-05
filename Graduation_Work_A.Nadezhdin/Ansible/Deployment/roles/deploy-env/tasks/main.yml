@@ -1,0 +1,53 @@
+  - name: Run "apt-get update"
+    apt:
+      update_cache: yes
+
+  - name: Install Java 1.8.0
+    apt:
+      name: openjdk-8-jdk    #java-1.8.0-openjdk
+      #     update_cache: yes
+      state: present
+
+  - name: Add Docker GPG apt Key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: Add Docker Repository
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+
+  - name: Update apt and install docker-ce
+    apt: update_cache=yes name=docker-ce state=latest
+
+  - name: Install Python Pip
+    apt:
+      name: python-pip
+      update_cache: yes
+      state: present
+
+  - name: Check Pip version
+    shell: "pip --version"
+
+  - name: Install lxml
+    pip:
+      name: lxml
+
+  - name: Install Docker Module for Python
+    pip:
+      name: docker
+
+  - name: Add devops user
+    user:
+      name: "{{lookup('env','LINUX_USER')}}"
+      password: "{{lookup('env','LINUX_PASSWORD')}}"
+      shell: /usr/bin/nologin
+      create_home: yes
+      #home: /var/lib/
+      groups: sudo, docker
+      append: yes
+      comment: devops user and password
+
+  - name: Add devops user to sudoers
+    shell: "echo 'nexus   ALL=(ALL)       NOPASSWD: ALL' >> /etc/sudoers.tmp"

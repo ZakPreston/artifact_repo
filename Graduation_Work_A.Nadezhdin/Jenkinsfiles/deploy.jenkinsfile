@@ -1,0 +1,70 @@
+def ARTIFACT_VERSION
+
+pipeline {
+    agent any
+    
+    parameters {
+        choice(name: 'ENV_NAME', choices: ['epam-qa', 'epam-ci', 'epam-docker'], description: 'Artifact version')
+        choice(name: 'ARTIFACT_TYPE', choices: ['jar', 'container'], description: 'Type of artifact to deploy')
+        string(name: 'ARTIFACT_VERSION', defaultValue: '', description: 'Artifact version (latest, if not set)')
+        choice(name: 'APPLICATION_PORT', choices: ['8082', '8083', '8084', '8085', '8086', '8087', '8088', '8089'], description: 'Listen port for the running Application')
+    }
+    
+    environment {
+        NEXUS_URL = "192.168.110.100:8081"
+        NEXUS_REPOSITORY = "Spring2020"
+        
+        DOCKER_REPO_URL = "192.168.110.100:8088"
+        DOCKER_CONTAINER_PORT = "${params.APPLICATION_PORT}:8080"
+        
+        APPLICATION_PORT = "${params.APPLICATION_PORT}"
+
+        REPOSITORY_URL = "http://${NEXUS_URL}/repository/${NEXUS_REPOSITORY}/"
+        LINUX_USER = "devops"
+        
+        GIT_URL = "https://github.com/ZakPreston/spring-boot.git"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    if (params.ARTIFACT_VERSION == '') {
+                        ARTIFACT_VERSION = "${Jenkins.instance.getItem('Build').lastSuccessfulBuild.number}"
+                    } else {
+                        ARTIFACT_VERSION = params.ARTIFACT_VERSION
+                    }
+                }
+                checkout scm: [
+                        $class: 'GitSCM',
+                        branches: [[name: '*/2.1.x']],
+                        userRemoteConfigs: [[url:GIT_URL]]
+                ]
+            }
+        }
+        
+        stage('Deploy') {        
+            steps {
+                script {
+                    pom = readMavenPom file: "spring-boot-samples/spring-boot-sample-web-ui/pom.xml";
+                    
+                    echo "Running deploy for ${pom.artifactId}-${ARTIFACT_VERSION} on '${params.ENV_NAME}' with port ${params.APPLICATION_PORT}"
+                    currentBuild.description = "${params.ENV_NAME.toUpperCase()}: ${params.ARTIFACT_TYPE} - ${pom.artifactId}-${ARTIFACT_VERSION}"
+                    
+                    withCredentials([string(credentialsId: 'LINUX_PASSWORD', variable: 'LINUX_PASSWORD')]) {
+                        withEnv(["LINUX_PASSWORD=${LINUX_PASSWORD}"]) {
+                            ansiblePlaybook(credentialsId: 'ssh-jenkins', inventory: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/hosts', playbook: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/deploy-env.yml', limit: params.ENV_NAME)
+                        }
+                    }
+                    withEnv(["ARTIFACT_VERSION=${ARTIFACT_VERSION}", "ARTIFACT_GROUP_ID=${pom.parent.groupId}", "ARTIFACT_ID=${pom.artifactId}"]) {
+                        if (params.ARTIFACT_TYPE == "jar") {
+                            ansiblePlaybook(credentialsId: 'ssh-jenkins', inventory: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/hosts', playbook: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/deploy-artifact.yml', limit: params.ENV_NAME)
+                        } else {
+                            ansiblePlaybook(credentialsId: 'ssh-jenkins', inventory: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/hosts', playbook: './spring-boot-samples/spring-boot-sample-web-ui/Deployment/deploy-docker-artifact.yml', limit: params.ENV_NAME)    
+                        }
+                    }
+                }
+            }
+        }        
+    }
+}

@@ -1,0 +1,14 @@
+
+  - name: Kill existing "{{lookup('env','ARTIFACT_ID')}}"
+    shell: "pkill -f *{{lookup('env','ARTIFACT_ID')}}* 2> /dev/null"
+    ignore_errors: yes
+
+  - maven_artifact:
+      version: "{{lookup('env','ARTIFACT_VERSION')}}"
+      group_id: "{{lookup('env','ARTIFACT_GROUP_ID')}}"
+      artifact_id: "{{lookup('env','ARTIFACT_ID')}}"
+      repository_url: "{{lookup('env','REPOSITORY_URL')}}"
+      dest: "~/{{lookup('env','ARTIFACT_ID')}}.jar"
+ 
+  - name: Deploy Artifact
+    shell: "nohup java -jar ~/{{lookup('env','ARTIFACT_ID')}}.jar --server.port={{lookup('env','APPLICATION_PORT')}} &"

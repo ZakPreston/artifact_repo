@@ -1,0 +1,447 @@
+---
+Parameters:
+
+  VPCSecurityGroupPort:
+    Description: "Select additional ports to open (from 21 to 65535 range)"
+    Default: 443
+    Type: Number
+    MinValue: 21
+    MaxValue: 65535
+
+  VPCSecurityGroupIngressCIDR:
+    Description: "The IP address range that can be used to communicate to the EC2 instances"
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  VPCCidrBlock:
+    Description: "Define VPC Cidr block"
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 192.168.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  VPCSubnetIpBlockA:
+    Description: "Enter SubnetA IP block"
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 192.168.110.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  VPCSubnetIpBlockB:
+    Description: "Enter SubnetB IP block"
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 192.168.120.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  VPCSubnetIpBlockC:
+    Description: "Enter SubnetC IP block"
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 192.168.130.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  EC2DevToolsInstanceType:
+    Description: "An EC2 instance according to task."
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.large
+      - t3.medium
+      - t3.micro
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  EC2CIQAInstanceType:
+    Description: "An EC2 instance according to task."
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.large
+      - t3.medium
+      - t3.micro
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  EC2DockerInstanceType:
+    Description: "An EC2 instance according to task."
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.large
+      - t3.medium
+      - t3.micro
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  EC2DevToolsPrivateIP:
+    Description: "Enter Dev Tools instance private IP"
+    Type: String
+    MinLength: '6'
+    MaxLength: '15'
+    Default: 192.168.110.100
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x
+
+  EC2CIInstancePrivateIP:
+    Description: "Enter CI instance private IP"
+    Type: String
+    MinLength: '6'
+    MaxLength: '15'
+    Default: 192.168.120.100
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x
+
+  EC2QAInstancePrivateIP:
+    Description: "Enter QA instance private IP"
+    Type: String
+    MinLength: '6'
+    MaxLength: '15'
+    Default: 192.168.130.100
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x
+
+  EC2ImageID:
+    Description: "An EC2 instance according to task (Ubuntu 18.04LTS/20.04 or AmazonLinux v2)"
+    Type: String
+    Default: ami-0f920d75f0ce2c4bb
+    AllowedValues:
+      - ami-0f920d75f0ce2c4bb #Ubuntu 18.04LTS
+      - ami-0b4a48196ce7bed7b #Ubuntu 20.04LTS
+      - ami-07d2cd50077a70430 #AmazonLinux v2
+    ConstraintDescription: must be a valid EC2 instance type.
+
+  KeyName:
+    Description: "Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter"
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Mappings:
+ #  This is the Amazon Linux 2 AMI.  Adjust these values as needed, they can change a few times per year:
+ AmazonLinuxAMI:
+   eu-west-1:
+     AMI: ami-0bdb1d6c15a40392c    # Ireland
+   eu-north-1:
+     AMI: ami-069f3513b6ca12761    # Sweden
+   eu-central-1:
+     AMI: ami-01e96b8be75e0cc96    # Germany
+
+
+Resources:
+
+  EC2PublicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable specific ports to egress and ingress
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 8082
+        ToPort: 8082
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      - IpProtocol: tcp
+        FromPort: 8088
+        ToPort: 8088
+        CidrIp: !Ref VPCSecurityGroupIngressCIDR
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8081
+        ToPort: 8081
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8082
+        ToPort: 8082
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8088
+        ToPort: 8088
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: EC2-Public-Security-Group
+
+  EC2PrivateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: allow connections to/from specified CIDR ranges
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: !Ref VPCCidrBlock
+      - IpProtocol: udp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: !Ref VPCCidrBlock
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: !Ref VPCCidrBlock
+      - IpProtocol: udp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: !Ref VPCCidrBlock
+      Tags:
+      - Key: Name
+        Value: EC2-Private-Security-Group
+
+  # EC2 instance
+  ECDevTools:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2DevToolsInstanceType
+      KeyName: !Ref KeyName
+      ImageId: !Ref EC2ImageID
+      SourceDestCheck: false
+      NetworkInterfaces:
+      - DeviceIndex: '0'
+        PrivateIpAddress: !Ref EC2DevToolsPrivateIP
+        SubnetId: !Ref SubnetA
+        AssociatePublicIpAddress: true
+        GroupSet:
+          - !Ref EC2PrivateSecurityGroup
+          - !Ref EC2PublicSecurityGroup
+      Tags:
+      - Key: Name
+        Value: EPAM-DevTools
+
+  EC2CIInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2CIQAInstanceType
+      KeyName: !Ref KeyName
+      ImageId: !Ref EC2ImageID
+      SourceDestCheck: false
+      NetworkInterfaces:
+      - DeviceIndex: '0'
+        PrivateIpAddress: !Ref EC2CIInstancePrivateIP
+        SubnetId: !Ref SubnetB
+        AssociatePublicIpAddress: true
+        GroupSet:
+          - !Ref EC2PrivateSecurityGroup
+          - !Ref EC2PublicSecurityGroup
+      Tags:
+      - Key: Name
+        Value: EPAM-CI
+
+  EC2QAinstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2CIQAInstanceType
+      KeyName: !Ref KeyName
+      ImageId: !Ref EC2ImageID
+      SourceDestCheck: false
+      NetworkInterfaces:
+      - DeviceIndex: '0'
+        PrivateIpAddress: !Ref EC2QAInstancePrivateIP
+        SubnetId: !Ref SubnetC
+        AssociatePublicIpAddress: true
+        GroupSet:
+          - !Ref EC2PrivateSecurityGroup
+          - !Ref EC2PublicSecurityGroup
+      Tags:
+      - Key: Name
+        Value: EPAM-QA
+
+  EC2DockerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref EC2DockerInstanceType
+      KeyName: !Ref KeyName
+      ImageId: !Ref EC2ImageID
+      SourceDestCheck: false
+      NetworkInterfaces:
+      - DeviceIndex: '0'
+        PrivateIpAddress: 192.168.110.200
+        SubnetId: !Ref SubnetA
+        AssociatePublicIpAddress: true
+        GroupSet:
+          - !Ref EC2PrivateSecurityGroup
+          - !Ref EC2PublicSecurityGroup
+      Tags:
+      - Key: Name
+        Value: EPAM-Docker
+
+  VPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Select a port to open from 21 to 65535 range"
+      SecurityGroupIngress:
+        - CidrIp: !Ref VPCSecurityGroupIngressCIDR
+          FromPort: !Ref VPCSecurityGroupPort
+          ToPort: !Ref VPCSecurityGroupPort
+          IpProtocol: tcp
+      VpcId: !Ref VPC
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: EPAM-VPC
+
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref VPCSubnetIpBlockA
+      AvailabilityZone: !Select [ 0, !GetAZs ]    # Get the first AZ in the list
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref VPCSubnetIpBlockB
+      AvailabilityZone: !Select [ 1, !GetAZs ]    # Get the first AZ in the list
+
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # the select function allows us to select across a list
+      CidrBlock: !Ref VPCSubnetIpBlockC
+      AvailabilityZone: !Select [ 2, !GetAZs ]    # Get the first AZ in the list
+
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+
+  VPCEIP:
+   Type: AWS::EC2::EIP
+   Properties:
+     Domain: !Ref VPC
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:   # Public route table has direct routing to IGW:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+
+  SubnetARouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref RouteTable
+
+  SubnetBRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      RouteTableId: !Ref RouteTable
+
+  SubnetCRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetC
+      RouteTableId: !Ref RouteTable
+
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+       AssumeRolePolicyDocument:
+         Version: "2012-10-17"
+         Statement:
+           - Effect: Allow
+             Principal:
+               Service:
+               - "ec2.amazonaws.com"
+             Action:
+               - "sts:AssumeRole"
+
+  IAMRolePolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+         PolicyName: root
+         PolicyDocument:
+               Version: "2012-10-17"
+               Statement:
+                 - Effect: Allow
+                   Action: "*"
+                   Resource: "*"
+         Roles:
+           - Ref: IAMRole
+
+  AIMRootInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+         Path: /
+         Roles:
+           - Ref: IAMRole
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: "zp-trashbucket1337"
+      AccessControl: PublicRead
+      CorsConfiguration:
+        CorsRules:
+        - AllowedHeaders:
+          - "*"
+          AllowedMethods:
+          - GET
+          AllowedOrigins:
+          - "*"
+          Id: OpenCors
+          MaxAge: '3600'
